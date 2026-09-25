@@ -1,0 +1,22 @@
+metric,value
+total_judgments,12000
+total_chunks,113517
+mean_chunks_per_judgment,9.45975
+median_chunks_per_judgment,6.0
+p95_chunks_per_judgment,26
+min_chunk_words,1
+max_chunk_words,1211
+mean_chunk_words,460.53096892976384
+median_chunk_words,488
+p95_chunk_words,661
+empty_chunks,0
+zero_chunk_judgments,0
+tiny_chunks,24
+large_chunks,0
+duplicate_chunk_ids,0
+duplicate_chunk_text,362
+missing_provenance,0
+invalid_source_offsets,0
+strategy_distribution,"{""structure_aware"": 113517}"
+decade_distribution,"{""1950s"": 3123, ""1960s"": 7865, ""1970s"": 8415, ""1980s"": 7889, ""1990s"": 10421, ""2000s"": 21634, ""2010s"": 34361, ""2020s"": 19809}"
+representative_chunks,"[{""year"": 1950, ""sample"": ""http://JUDIS.NIC.IN \nSUPREME COURT OF INDIA\nPage 1 of 19 \nPETITIONER:\nPANNALAL JANKIDAS\n Vs.\nRESPONDENT:\nMOHANLAL AND ANOTHER.\nDATE OF JUDGMENT:\n21/12/1950\nBENCH:\nKANIA, HIRALAL J. (CJ)\nBENCH:\nKANIA, HIRALAL J. (CJ)\nSASTRI, M. PATANJALI\nDAS, SUDHI RANJAN\nCITATION:\n 1951 AIR 144 1950 SCR 979\nACT:\n Co""}, {""year"": 1970, ""sample"": ""http://JUDIS.NIC.IN \nSUPREME COURT OF INDIA\nPage 1 of 6 \nPETITIONER:\nCHAMAN LAL\n Vs.\nRESPONDENT:\nTHE STATE OF PUNJAB\nDATE OF JUDGMENT:\n06/03/1970\nBENCH:\nRAY, A.N.\nBENCH:\nRAY, A.N.\nDUA, I.D.\nCITATION:\n 1970 AIR 1372 1970 SCR (3) 913\n 1970 SCC (1) 590\n CITATOR INFO :\n R 1971 SC1567 (8)\n RF 1981 SC1514""}, {""year"": 1990, ""sample"": ""http://JUDIS.NIC.IN \nSUPREME COURT OF INDIA\nPage 1 of 8 \nPETITIONER:\nCHINNAMMAL & 4 ORS.\n Vs.\nRESPONDENT:\nP. ARUMUGHAM & ANR.\nDATE OF JUDGMENT17/01/1990\nBENCH:\nSHETTY, K.J. (J)\nBENCH:\nSHETTY, K.J. (J)\nTHOMMEN, T.K. (J)\nCITATION:\n 1990 AIR 1828 1990 SCR (1) 78\n 1990 SCC (1) 513 JT 1990 (1) 51\n 1990 S""}, {""year"": 2010, ""sample"": ""NON-REPORTABLE\nIN THE SUPREME COURT OF INDIA\nCIVIL APPELLATE JURISDICTION\nCIVIL APPEAL NO.192 OF 2010\n(Arising out of Special Leave Petition (C) No. 10805 OF 2008)\nSHYAM GOPAL BINDAL & ORS.\n....APPELLANT(S)\nVERSUS\nLAND ACQUISITION OFFICER & ANR.\n ......RESPONDENT(S)\nO R D E R\nSURINDER SINGH NIJJAR, ""}, {""year"": 2020, ""sample"": ""1.\nThe instant appeal, by way of special leave, is directed\nagainst judgment and order dated 11.09.2008 passed by the\nHigh Court of Karnataka at Bangalore whereby the High\nCourt dismissed the Criminal Appeal No. 128 of 2005 filed\nby the appellants herein (accused nos. 1 and 2) and affirmed\nthe order""}]"

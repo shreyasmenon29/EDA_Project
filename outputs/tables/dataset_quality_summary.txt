@@ -1,0 +1,19 @@
+DATASET QUALITY SUMMARY
+============================================================
+
+Total records: 12000
+Duplicate diary number groups: 0
+Duplicate diary number occurrences: 0
+Duplicate full-text groups: 18
+Duplicate full-text occurrences: 56
+
+TEXT VALIDITY
+------------------------------------------------------------
+Empty full_text: 0
+Empty clean_text: 0
+
+DATE VALIDATION
+------------------------------------------------------------
+Valid dates: 12000
+Invalid dates: 0
+Missing dates: 0

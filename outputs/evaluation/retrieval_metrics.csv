@@ -1,0 +1,3 @@
+strategy,questions_evaluated,recall_at_1,recall_at_3,recall_at_5,recall_at_10,mrr,ndcg_at_5,ndcg_at_10
+generic,3,0.3333,1.0000,1.0000,1.0000,0.6111,0.5559,0.5817
+structure_aware,3,0.6667,1.0000,1.0000,1.0000,0.8333,0.7988,0.7628

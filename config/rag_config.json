@@ -1,0 +1,53 @@
+{
+  "project_root": ".",
+  "sample_dataset_path": "data/raw/sampled_judgments.jsonl",
+  "processed_dataset_path": "data/processed/judgments_processed.jsonl",
+
+  "generic_chunk_size": 500,
+  "generic_overlap": 100,
+
+  "structure_aware_target_chunk_size": 600,
+  "structure_aware_overlap": 0,
+  "structure_aware_min_chunk_words": 120,
+  "structure_aware_max_chunk_words": 1200,
+  "segment_fallback_to_fixed_window": true,
+
+  "embedding_model_name": "sentence-transformers/all-MiniLM-L6-v2",
+  "embedding_batch_size": 32,
+
+  "faiss_index_type": "IndexFlatIP",
+  "faiss_metric": "cosine",
+  "faiss_normalize_embeddings": true,
+
+  "retrieval_top_k": [
+    5,
+    10,
+    20
+  ],
+
+  "random_seed": 42,
+
+  "output_directories": {
+    "chunks": "data/chunks",
+    "tables": "outputs/tables",
+    "reports": "outputs/reports",
+    "figures": "outputs/figures"
+  },
+
+  "validation": {
+    "min_chunk_words": 30,
+    "max_chunk_words": 2000,
+    "tiny_chunk_threshold": 25,
+    "large_chunk_threshold": 1800,
+    "representative_decades": [
+      1950,
+      1970,
+      1990,
+      2010,
+      2020
+    ],
+
+    "retrieval_relevance_threshold": 0.45,
+    "min_relevant_results": 1
+  }
+}

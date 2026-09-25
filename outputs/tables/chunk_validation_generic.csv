@@ -1,0 +1,22 @@
+metric,value
+total_judgments,12000
+total_chunks,131388
+mean_chunks_per_judgment,10.949
+median_chunks_per_judgment,7.0
+p95_chunks_per_judgment,30
+min_chunk_words,18
+max_chunk_words,4962
+mean_chunk_words,501.68050354674705
+median_chunk_words,506.0
+p95_chunk_words,535
+empty_chunks,0
+zero_chunk_judgments,0
+tiny_chunks,1
+large_chunks,55
+duplicate_chunk_ids,0
+duplicate_chunk_text,359
+missing_provenance,0
+invalid_source_offsets,0
+strategy_distribution,"{""generic"": 131388}"
+decade_distribution,"{""1950s"": 4529, ""1960s"": 10864, ""1970s"": 11679, ""1980s"": 11018, ""1990s"": 13760, ""2000s"": 26490, ""2010s"": 34666, ""2020s"": 18382}"
+representative_chunks,"[{""year"": 1950, ""sample"": ""http://JUDIS.NIC.IN \nSUPREME COURT OF INDIA\nPage 1 of 19 \nPETITIONER:\nPANNALAL JANKIDAS\n Vs.\nRESPONDENT:\nMOHANLAL AND ANOTHER.\nDATE OF JUDGMENT:\n21/12/1950\nBENCH:\nKANIA, HIRALAL J. (CJ)\nBENCH:\nKANIA, HIRALAL J. (CJ)\nSASTRI, M. PATANJALI\nDAS, SUDHI RANJAN\nCITATION:\n 1951 AIR 144 1950 SCR 979\nACT:\n Co""}, {""year"": 1970, ""sample"": ""http://JUDIS.NIC.IN \nSUPREME COURT OF INDIA\nPage 1 of 6 \nPETITIONER:\nCHAMAN LAL\n Vs.\nRESPONDENT:\nTHE STATE OF PUNJAB\nDATE OF JUDGMENT:\n06/03/1970\nBENCH:\nRAY, A.N.\nBENCH:\nRAY, A.N.\nDUA, I.D.\nCITATION:\n 1970 AIR 1372 1970 SCR (3) 913\n 1970 SCC (1) 590\n CITATOR INFO :\n R 1971 SC1567 (8)\n RF 1981 SC1514""}, {""year"": 1990, ""sample"": ""http://JUDIS.NIC.IN \nSUPREME COURT OF INDIA\nPage 1 of 8 \nPETITIONER:\nCHINNAMMAL & 4 ORS.\n Vs.\nRESPONDENT:\nP. ARUMUGHAM & ANR.\nDATE OF JUDGMENT17/01/1990\nBENCH:\nSHETTY, K.J. (J)\nBENCH:\nSHETTY, K.J. (J)\nTHOMMEN, T.K. (J)\nCITATION:\n 1990 AIR 1828 1990 SCR (1) 78\n 1990 SCC (1) 513 JT 1990 (1) 51\n 1990 S""}, {""year"": 2010, ""sample"": ""NON-REPORTABLE\nIN THE SUPREME COURT OF INDIA\nCIVIL APPELLATE JURISDICTION\nCIVIL APPEAL NO.192 OF 2010\n(Arising out of Special Leave Petition (C) No. 10805 OF 2008)\nSHYAM GOPAL BINDAL & ORS.\n....APPELLANT(S)\nVERSUS\nLAND ACQUISITION OFFICER & ANR.\n ......RESPONDENT(S)\nO R D E R\nSURINDER SINGH NIJJAR, ""}, {""year"": 2020, ""sample"": ""1\nIN THE SUPREME COURT OF INDIA\nCRIMINAL APPELLATE JURISDICTION\nCRIMINAL APPEAL No.1938 OF 2010\nMOHAMMED YOUSUFF @ MOULA & ANR.\n ...APPELLANTS\n\nVersus\nTHE STATE OF KARNATAKA \n\n ... RESPONDENT\n\nJUDGMENT\n\nN. V. RAMANA, J.\n\n1.\nThe instant appeal, by way of special leave, is directed\nagainst judgment an""}]"

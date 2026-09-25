@@ -1,0 +1,16 @@
+field,present_count,missing_count,present_percentage,missing_percentage
+diary_no,12000,0,100.0,0.0
+judgement_type,0,12000,0.0,100.0
+case_no,12000,0,100.0,0.0
+pet,12000,0,100.0,0.0
+res,12000,0,100.0,0.0
+pet_adv,12000,0,100.0,0.0
+res_adv,12000,0,100.0,0.0
+bench,12000,0,100.0,0.0
+judgement_by,12000,0,100.0,0.0
+judgment_dates,12000,0,100.0,0.0
+outcome,11563,437,96.35833333333333,3.6416666666666666
+sections_cited,12000,0,100.0,0.0
+articles_cited,12000,0,100.0,0.0
+full_text,12000,0,100.0,0.0
+clean_text,12000,0,100.0,0.0

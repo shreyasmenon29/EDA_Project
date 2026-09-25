@@ -1,0 +1,161 @@
+TEXT STATISTICS SUMMARY
+======================================================================
+
+Total records: 12000
+
+OVERALL STATISTICS
+----------------------------------------------------------------------
+
+word_count
+Mean: 4458.08
+Median: 2965.00
+Std: 7942.49
+Min: 46.00
+Q1: 1523.00
+Q3: 5108.25
+IQR: 3585.25
+95th percentile: 12342.30
+Max: 427494.00
+
+character_count
+Mean: 25443.07
+Median: 17003.00
+Std: 46399.10
+Min: 318.00
+Q1: 8741.50
+Q3: 29101.50
+IQR: 20360.00
+95th percentile: 70275.40
+Max: 2540890.00
+
+sentence_count
+Mean: 264.38
+Median: 181.00
+Std: 435.11
+Min: 7.00
+Q1: 100.00
+Q3: 306.00
+IQR: 206.00
+95th percentile: 719.05
+Max: 22862.00
+
+paragraph_count
+Mean: 21.72
+Median: 9.00
+Std: 64.41
+Min: 1.00
+Q1: 5.00
+Q3: 19.00
+IQR: 14.00
+95th percentile: 69.05
+Max: 2376.00
+
+unique_word_count
+Mean: 761.40
+Median: 652.00
+Std: 594.14
+Min: 21.00
+Q1: 426.00
+Q3: 937.00
+IQR: 511.00
+95th percentile: 1676.05
+Max: 13600.00
+
+vocabulary_diversity
+Mean: 0.26
+Median: 0.23
+Std: 0.12
+Min: 0.01
+Q1: 0.18
+Q3: 0.29
+IQR: 0.12
+95th percentile: 0.52
+Max: 0.85
+
+average_sentence_length
+Mean: 16.52
+Median: 15.62
+Std: 9.20
+Min: 0.59
+Q1: 12.73
+Q3: 18.71
+IQR: 5.98
+95th percentile: 24.39
+Max: 275.21
+
+
+STATISTICS BY DECADE
+======================================================================
+
+1950s
+  word_count: median=4809.00, mean=6596.45, IQR=4038.75, P95=19303.40
+  character_count: median=26877.00, mean=37610.57, IQR=23142.75, P95=111904.05
+  sentence_count: median=271.00, mean=367.15, IQR=221.00, P95=987.45
+  paragraph_count: median=9.00, mean=11.66, IQR=7.00, P95=31.70
+  unique_word_count: median=885.50, mean=1034.14, IQR=507.00, P95=1978.90
+  vocabulary_diversity: median=0.19, mean=0.19, IQR=0.06, P95=0.26
+  average_sentence_length: median=17.87, mean=18.15, IQR=4.48, P95=24.49
+
+1960s
+  word_count: median=3863.00, mean=4884.08, IQR=2833.75, P95=10224.75
+  character_count: median=21829.00, mean=27760.00, IQR=16363.00, P95=57771.00
+  sentence_count: median=246.50, mean=305.51, IQR=166.75, P95=637.25
+  paragraph_count: median=7.00, mean=9.82, IQR=4.00, P95=18.00
+  unique_word_count: median=732.00, mean=815.81, IQR=380.75, P95=1464.75
+  vocabulary_diversity: median=0.19, mean=0.19, IQR=0.05, P95=0.26
+  average_sentence_length: median=15.82, mean=15.85, IQR=3.78, P95=20.58
+
+1970s
+  word_count: median=4081.00, mean=5917.36, IQR=3787.75, P95=13116.20
+  character_count: median=23387.50, mean=34122.08, IQR=22427.50, P95=74637.35
+  sentence_count: median=252.00, mean=356.10, IQR=215.75, P95=784.85
+  paragraph_count: median=8.00, mean=11.45, IQR=7.00, P95=23.55
+  unique_word_count: median=768.00, mean=907.89, IQR=472.00, P95=1773.40
+  vocabulary_diversity: median=0.19, mean=0.20, IQR=0.06, P95=0.29
+  average_sentence_length: median=16.24, mean=16.40, IQR=4.69, P95=22.39
+
+1980s
+  word_count: median=3945.00, mean=5764.87, IQR=3932.00, P95=14916.60
+  character_count: median=22729.00, mean=33317.66, IQR=21817.00, P95=87756.20
+  sentence_count: median=230.00, mean=323.32, IQR=209.00, P95=813.20
+  paragraph_count: median=8.00, mean=10.57, IQR=7.00, P95=25.80
+  unique_word_count: median=742.00, mean=890.06, IQR=474.00, P95=1900.80
+  vocabulary_diversity: median=0.19, mean=0.19, IQR=0.07, P95=0.29
+  average_sentence_length: median=17.01, mean=17.50, IQR=4.73, P95=24.46
+
+1990s
+  word_count: median=2281.00, mean=3460.22, IQR=3018.00, P95=9584.00
+  character_count: median=13409.00, mean=20028.11, IQR=17175.00, P95=54701.00
+  sentence_count: median=138.00, mean=207.36, IQR=180.00, P95=574.00
+  paragraph_count: median=5.00, mean=6.93, IQR=5.00, P95=17.00
+  unique_word_count: median=550.00, mean=644.67, IQR=451.00, P95=1410.00
+  vocabulary_diversity: median=0.25, mean=0.27, IQR=0.14, P95=0.50
+  average_sentence_length: median=15.90, mean=16.24, IQR=6.13, P95=23.93
+
+2000s
+  word_count: median=2195.00, mean=3090.65, IQR=2687.00, P95=8532.50
+  character_count: median=12747.00, mean=18022.52, IQR=15719.50, P95=50442.50
+  sentence_count: median=140.00, mean=188.77, IQR=155.00, P95=486.50
+  paragraph_count: median=6.00, mean=10.57, IQR=7.00, P95=29.00
+  unique_word_count: median=564.00, mean=639.21, IQR=457.50, P95=1408.00
+  vocabulary_diversity: median=0.26, mean=0.29, IQR=0.13, P95=0.54
+  average_sentence_length: median=15.29, mean=15.57, IQR=6.11, P95=23.40
+
+2010s
+  word_count: median=2779.50, mean=4498.83, IQR=3994.75, P95=12855.15
+  character_count: median=16044.00, mean=25940.38, IQR=22943.25, P95=73505.35
+  sentence_count: median=178.00, mean=274.11, IQR=225.75, P95=818.00
+  paragraph_count: median=19.00, mean=34.72, IQR=25.00, P95=108.35
+  unique_word_count: median=647.50, mean=777.91, IQR=605.50, P95=1828.75
+  vocabulary_diversity: median=0.24, mean=0.28, IQR=0.14, P95=0.58
+  average_sentence_length: median=14.59, mean=15.82, IQR=7.04, P95=23.87
+
+2020s
+  word_count: median=3959.00, mean=6978.00, IQR=5458.50, P95=22387.50
+  character_count: median=20814.00, mean=37231.33, IQR=27038.50, P95=125889.20
+  sentence_count: median=221.00, mean=377.97, IQR=285.00, P95=1192.70
+  paragraph_count: median=27.00, mean=64.48, IQR=48.00, P95=218.00
+  unique_word_count: median=744.00, mean=939.55, IQR=645.50, P95=2400.10
+  vocabulary_diversity: median=0.20, mean=0.22, IQR=0.12, P95=0.43
+  average_sentence_length: median=15.95, mean=21.03, IQR=7.89, P95=50.13
+

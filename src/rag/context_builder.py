@@ -3,12 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from src.rag.metadata import get_document_metadata
+
 
 @dataclass
 class ContextChunk:
     rank: int
     score: float
     diary_no: str
+    case_name: str
+    citation: str
+    url: str | None
+    year: str
     judgment_date: str
     chunk_id: str
     section_label: str
@@ -43,49 +49,27 @@ class ContextBuilder:
         result: dict[str, Any],
     ) -> ContextChunk:
 
+        diary_no = str(result.get("diary_no", "")).strip()
+        doc_meta = get_document_metadata(diary_no)
+
+        case_name = result.get("case_name") or doc_meta.get("case_name", "Case name unavailable")
+        citation = result.get("citation") or doc_meta.get("citation", "Citation unavailable")
+        url = result.get("url") if "url" in result else doc_meta.get("url")
+        year = str(result.get("year") or doc_meta.get("year", "Year unavailable"))
+        judgment_date = str(result.get("judgment_date") or doc_meta.get("judgment_date", "Date unavailable"))
+
         return ContextChunk(
-            rank=int(
-                result.get(
-                    "rank",
-                    0,
-                )
-            ),
-            score=float(
-                result.get(
-                    "score",
-                    0.0,
-                )
-            ),
-            diary_no=str(
-                result.get(
-                    "diary_no",
-                    "",
-                )
-            ),
-            judgment_date=str(
-                result.get(
-                    "judgment_date",
-                    "",
-                )
-            ),
-            chunk_id=str(
-                result.get(
-                    "chunk_id",
-                    "",
-                )
-            ),
-            section_label=str(
-                result.get(
-                    "section_label",
-                    "",
-                )
-            ),
-            text=str(
-                result.get(
-                    "text",
-                    "",
-                )
-            ).strip(),
+            rank=int(result.get("rank", 0)),
+            score=float(result.get("score", 0.0)),
+            diary_no=diary_no,
+            case_name=case_name,
+            citation=citation,
+            url=url,
+            year=year,
+            judgment_date=judgment_date,
+            chunk_id=str(result.get("chunk_id", "")),
+            section_label=str(result.get("section_label", "")),
+            text=str(result.get("text", "")).strip(),
         )
 
     def _deduplicate(
@@ -175,8 +159,13 @@ class ContextBuilder:
             start=1,
         ):
 
+            url_display = chunk.url if chunk.url else "Judgment link unavailable"
+
             header = (
                 f"[SOURCE {index}]\n"
+                f"Case: {chunk.case_name} ({chunk.year})\n"
+                f"Citation: {chunk.citation}\n"
+                f"Judgment URL: {url_display}\n"
                 f"Diary Number: {chunk.diary_no}\n"
                 f"Judgment Date: {chunk.judgment_date}\n"
                 f"Section: {chunk.section_label}\n"
@@ -218,10 +207,15 @@ class ContextBuilder:
                 {
                     "source_number": index,
                     "diary_no": chunk.diary_no,
+                    "case_name": chunk.case_name,
+                    "citation": chunk.citation,
+                    "url": chunk.url,
+                    "year": chunk.year,
                     "judgment_date": chunk.judgment_date,
                     "section_label": chunk.section_label,
                     "chunk_id": chunk.chunk_id,
                     "score": chunk.score,
+                    "text": chunk.text,
                 }
             )
 

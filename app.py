@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import textwrap
 
 import streamlit as st
 import pandas as pd
@@ -14,7 +15,6 @@ from src.rag.pipeline import RAGPipeline
 BASE_DIR = Path(__file__).resolve().parent
 FIGURE_DIR = BASE_DIR / "outputs" / "figures"
 TABLE_DIR = BASE_DIR / "outputs" / "tables"
-PROCESSED_DATA_PATH = BASE_DIR / "data" / "processed" / "judgments_processed.jsonl"
 
 
 # Human-readable display names for the fitted K=12 topic model.
@@ -486,373 +486,6 @@ def find_topic_table() -> pd.DataFrame | None:
     return None
 
 
-# ============================================================
-# ASK THE DATASET — HELPERS
-# ============================================================
-#
-# These helpers load the processed judgment dataset directly and
-# derive filters/statistics dynamically. Nothing here is hard-coded:
-# every statistic is computed from whatever columns actually exist
-# in data/processed/judgments_processed.jsonl (or, for topic
-# assignment, whatever per-document topic table already exists in
-# outputs/tables). Missing fields degrade to "N/A" / hidden filters
-# rather than being invented.
-
-_TOPIC_PROP_COL_RE = re.compile(r"topic_\d+")
-
-
-@st.cache_data(show_spinner="Loading processed judgment dataset...")
-def load_processed_dataset() -> pd.DataFrame | None:
-    """
-    Load the processed judgment dataset (JSON Lines) used for the
-    'Ask the Dataset' exploration page. Cached so the ~12,000-record
-    file is parsed once per session, not on every filter interaction.
-    """
-    if not PROCESSED_DATA_PATH.exists():
-        return None
-
-    try:
-        df = pd.read_json(PROCESSED_DATA_PATH, lines=True)
-    except ValueError:
-        # Not valid JSON-lines; try a permissive line-by-line load.
-        import json
-
-        records = []
-        try:
-            with open(PROCESSED_DATA_PATH, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        records.append(json.loads(line))
-                    except Exception:
-                        continue
-        except Exception:
-            return None
-
-        if not records:
-            return None
-
-        df = pd.DataFrame(records)
-    except Exception:
-        return None
-
-    if df is None or df.empty:
-        return None
-
-    return df
-
-
-def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
-    """Case-insensitive lookup of the first matching column name."""
-    lookup = {str(c).strip().lower(): c for c in df.columns}
-    for cand in candidates:
-        if cand.lower() in lookup:
-            return lookup[cand.lower()]
-    return None
-
-
-def _to_bool_series(series: pd.Series) -> pd.Series:
-    """Best-effort coercion of a column to booleans without inventing data."""
-    if series.dtype == bool:
-        return series.fillna(False)
-
-    def _coerce(v):
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, (int, float)):
-            if pd.isna(v):
-                return False
-            return v > 0
-        if isinstance(v, str):
-            return v.strip().lower() in {"true", "yes", "y", "1", "present"}
-        if isinstance(v, (list, tuple, set)):
-            return len(v) > 0
-        return False
-
-    return series.apply(_coerce)
-
-
-def derive_decade_series(df: pd.DataFrame) -> tuple[pd.Series | None, str | None]:
-    """Return a Series of decade labels like '1990s', using whatever
-    date-like field already exists in the processed dataset."""
-    decade_col = _find_col(df, ["decade"])
-    if decade_col is not None:
-        raw = df[decade_col].astype(str).str.strip()
-        # Normalize values such as "1990" -> "1990s"
-        normalized = raw.apply(
-            lambda v: v if v.endswith("s") else (f"{v}s" if v.isdigit() else v)
-        )
-        return normalized, decade_col
-
-    year_col = _find_col(
-        df, ["year", "judgment_year", "decision_year", "case_year"]
-    )
-    if year_col is not None:
-        years = pd.to_numeric(df[year_col], errors="coerce")
-        decades = years.apply(
-            lambda y: f"{int(y // 10 * 10)}s" if pd.notna(y) else None
-        )
-        return decades, year_col
-
-    date_col = _find_col(
-        df, ["judgment_date", "date", "decision_date", "order_date"]
-    )
-    if date_col is not None:
-        parsed = pd.to_datetime(df[date_col], errors="coerce")
-        decades = parsed.dt.year.apply(
-            lambda y: f"{int(y // 10 * 10)}s" if pd.notna(y) else None
-        )
-        return decades, date_col
-
-    return None, None
-
-
-@st.cache_data(show_spinner=False)
-def find_document_topic_table(_df_len: int) -> pd.DataFrame | None:
-    """
-    Look for a per-document (not decade-aggregated) topic table among
-    the existing EDA output tables, so the already-fitted K=12 topic
-    model is reused rather than re-fit. Only used when the processed
-    JSONL itself does not already carry a topic assignment.
-    """
-    if not TABLE_DIR.exists():
-        return None
-
-    for csv_path in sorted(TABLE_DIR.glob("*.csv")):
-        try:
-            candidate = pd.read_csv(csv_path)
-        except Exception:
-            continue
-
-        if candidate.empty:
-            continue
-
-        normalized = {str(c).strip().lower(): c for c in candidate.columns}
-        topic_cols = [
-            normalized[c] for c in normalized if _TOPIC_PROP_COL_RE.fullmatch(c)
-        ]
-
-        if len(topic_cols) < 8:
-            continue
-
-        # A per-document table has roughly as many rows as the dataset,
-        # not one row per decade.
-        if len(candidate) < 100:
-            continue
-
-        id_col = None
-        for cand in ["diary_no", "case_no", "id", "document_id", "doc_id"]:
-            if cand in normalized:
-                id_col = normalized[cand]
-                break
-
-        if id_col is None:
-            continue
-
-        return candidate
-
-    return None
-
-
-def derive_topic_series(df: pd.DataFrame) -> pd.Series | None:
-    """
-    Return a Series of topic keys (e.g. 'topic_6') per judgment, reusing
-    the existing fitted K=12 topic model's output. Tries, in order:
-    1. Wide per-document topic-proportion columns already in the JSONL.
-    2. An existing single dominant-topic column already in the JSONL.
-    3. A per-document topic table already produced by the EDA pipeline.
-    Returns None if no topic assignment can be found anywhere.
-    """
-    topic_prop_cols = [
-        c for c in df.columns if _TOPIC_PROP_COL_RE.fullmatch(str(c).lower())
-    ]
-
-    if len(topic_prop_cols) >= 8:
-        numeric = df[topic_prop_cols].apply(pd.to_numeric, errors="coerce")
-        if numeric.notna().any(axis=None):
-            dominant = numeric.idxmax(axis=1)
-            return dominant.astype(str).str.lower()
-
-    dom_col = _find_col(
-        df, ["dominant_topic", "assigned_topic", "topic_label", "topic_id", "topic"]
-    )
-    if dom_col is not None:
-        def _normalize(v):
-            if pd.isna(v):
-                return None
-            s = str(v).strip().lower()
-            match = re.search(r"(\d+)", s)
-            if match:
-                return f"topic_{match.group(1)}"
-            return s if s.startswith("topic_") else None
-
-        normalized = df[dom_col].apply(_normalize)
-        if normalized.notna().any():
-            return normalized
-
-    # Fall back to a per-document table already produced elsewhere in
-    # the project, joined on a shared id column.
-    doc_topic_table = find_document_topic_table(len(df))
-    if doc_topic_table is not None:
-        id_candidates = ["diary_no", "case_no", "id", "document_id", "doc_id"]
-        table_id_col = _find_col(doc_topic_table, id_candidates)
-        df_id_col = _find_col(df, id_candidates)
-
-        if table_id_col is not None and df_id_col is not None:
-            topic_cols = [
-                c
-                for c in doc_topic_table.columns
-                if _TOPIC_PROP_COL_RE.fullmatch(str(c).strip().lower())
-            ]
-            try:
-                merged = df[[df_id_col]].merge(
-                    doc_topic_table[[table_id_col] + topic_cols],
-                    left_on=df_id_col,
-                    right_on=table_id_col,
-                    how="left",
-                )
-                numeric = merged[topic_cols].apply(pd.to_numeric, errors="coerce")
-                if numeric.notna().any(axis=None):
-                    dominant = numeric.idxmax(axis=1)
-                    dominant.index = df.index
-                    return dominant.astype(str).str.lower()
-            except Exception:
-                return None
-
-    return None
-
-
-# Candidate column names for each structural marker. Only markers with
-# a matching column actually present in the processed dataset are
-# offered as filter options — no new structural fields are invented.
-STRUCTURAL_MARKER_CANDIDATES: dict[str, list[str]] = {
-    "CORAM": ["has_coram", "coram_present", "coram_marker", "contains_coram"],
-    "JUDGMENT BY": [
-        "has_judgment_by",
-        "judgment_by_present",
-        "judgment_by_marker",
-        "contains_judgment_by",
-    ],
-    "ISSUES": ["has_issues", "issues_present", "issues_marker", "contains_issues"],
-    "HELD": ["has_held", "held_present", "held_marker", "contains_held"],
-    "ORDER": ["has_order", "order_present", "order_marker", "contains_order"],
-    "Numbered paragraphs": [
-        "has_numbered_paragraphs",
-        "numbered_paragraphs_present",
-        "numbered_paragraph_marker",
-        "uses_numbered_paragraphs",
-    ],
-    "Page markers": [
-        "has_page_markers",
-        "page_markers_present",
-        "page_marker_marker",
-        "uses_page_markers",
-    ],
-}
-
-# Count-style fallback columns for markers that may be stored as a
-# frequency rather than a boolean flag.
-STRUCTURAL_MARKER_COUNT_CANDIDATES: dict[str, list[str]] = {
-    "CORAM": ["coram_count"],
-    "JUDGMENT BY": ["judgment_by_count"],
-    "ISSUES": ["issues_count"],
-    "HELD": ["held_count"],
-    "ORDER": ["order_count"],
-    "Numbered paragraphs": ["numbered_paragraph_count", "numbered_paragraphs_count"],
-    "Page markers": ["page_marker_count", "page_markers_count"],
-}
-
-
-def detect_structural_markers(df: pd.DataFrame) -> dict[str, pd.Series]:
-    """Return {marker display name: boolean Series} for markers that
-    actually exist in the processed dataset."""
-    detected: dict[str, pd.Series] = {}
-
-    for marker, bool_candidates in STRUCTURAL_MARKER_CANDIDATES.items():
-        col = _find_col(df, bool_candidates)
-        if col is not None:
-            detected[marker] = _to_bool_series(df[col])
-            continue
-
-        count_candidates = STRUCTURAL_MARKER_COUNT_CANDIDATES.get(marker, [])
-        count_col = _find_col(df, count_candidates)
-        if count_col is not None:
-            counts = pd.to_numeric(df[count_col], errors="coerce").fillna(0)
-            detected[marker] = counts > 0
-
-    return detected
-
-
-LEGAL_REFERENCE_LIST_CANDIDATES = {
-    "Constitutional Article": [
-        "constitutional_articles",
-        "articles",
-        "article_refs",
-        "constitution_articles",
-    ],
-    "Statutory Section": [
-        "statutory_sections",
-        "sections",
-        "section_refs",
-        "statute_sections",
-    ],
-}
-
-LEGAL_REFERENCE_COUNT_CANDIDATES = {
-    "Constitutional Article": [
-        "constitutional_article_count",
-        "n_constitutional_articles",
-        "article_count",
-        "n_articles",
-    ],
-    "Statutory Section": [
-        "statutory_section_count",
-        "n_statutory_sections",
-        "section_count",
-        "n_sections",
-    ],
-}
-
-
-def detect_legal_reference_fields(df: pd.DataFrame) -> dict:
-    """
-    Inspect the processed dataset for legal-reference fields already
-    extracted by the EDA pipeline (constitutional articles / statutory
-    sections). Returns, per reference type, whichever of a list-valued
-    column or a count column is actually present.
-    """
-    info = {}
-
-    for ref_type, list_candidates in LEGAL_REFERENCE_LIST_CANDIDATES.items():
-        list_col = _find_col(df, list_candidates)
-        count_col = _find_col(df, LEGAL_REFERENCE_COUNT_CANDIDATES[ref_type])
-
-        if list_col is None and count_col is None:
-            continue
-
-        info[ref_type] = {"list_col": list_col, "count_col": count_col}
-
-    return info
-
-
-def reference_count_series(df: pd.DataFrame, field_info: dict) -> pd.Series:
-    """Return a numeric count-of-references Series for a detected
-    legal-reference field, preferring an explicit count column and
-    falling back to the length of a list-valued column."""
-    if field_info.get("count_col") is not None:
-        return pd.to_numeric(df[field_info["count_col"]], errors="coerce").fillna(0)
-
-    list_col = field_info.get("list_col")
-    if list_col is not None:
-        return df[list_col].apply(
-            lambda v: len(v) if isinstance(v, (list, tuple, set)) else 0
-        )
-
-    return pd.Series([0] * len(df), index=df.index)
-
-
 def show_topic_heatmap():
     """Render an interactive topic heatmap with human-readable labels."""
     df = find_topic_table()
@@ -1101,8 +734,6 @@ with st.sidebar:
             "Additional Findings",
             "Topics",
             "Legal References",
-            "Retrieval",
-            "Ask the Dataset",
             "Chatbot",
         ],
         label_visibility="collapsed",
@@ -1135,7 +766,7 @@ with st.sidebar:
 if page == "Overview":
 
     st.markdown(
-        """
+        textwrap.dedent("""
         <div class="research-banner">
             <div class="research-label">
                 Empirical Study
@@ -1147,14 +778,14 @@ if page == "Overview":
                 judgments evolved over time?
             </div>
         </div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
     st.title("Indian Supreme Court Judgment Analytics")
 
     st.markdown(
-        """
+        textwrap.dedent("""
         <div class="section-intro">
         An exploratory and statistical analysis of a representative
         12,000-judgment sample drawn from a corpus of 41,839 Indian
@@ -1163,7 +794,7 @@ if page == "Overview":
         with the resulting findings motivating a controlled comparison of
         generic and structure-aware legal information retrieval.
         </div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
@@ -1734,659 +1365,6 @@ elif page == "Retrieval":
 
 
 # ============================================================
-# ASK THE DATASET
-# ============================================================
-
-elif page == "Ask the Dataset":
-
-    st.title("Ask the Dataset")
-
-    st.markdown(
-        """
-        <div class="section-intro">
-        Explore patterns in the 12,000-judgment research sample using
-        interactive filters and document-level statistics.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    dataset_df = load_processed_dataset()
-
-    if dataset_df is None:
-
-        st.warning(
-            "The processed dataset "
-            f"({PROCESSED_DATA_PATH.relative_to(BASE_DIR)}) was not found "
-            "or could not be read. This page will become available once "
-            "the processed judgment file is present."
-        )
-
-    else:
-
-        # ------------------------------------------------------
-        # DERIVE FIELDS DYNAMICALLY (no hard-coded statistics)
-        # ------------------------------------------------------
-
-        decade_series, _decade_source_col = derive_decade_series(dataset_df)
-        topic_series = derive_topic_series(dataset_df)
-
-        word_col = _find_col(
-            dataset_df,
-            ["word_count", "n_words", "num_words", "total_words", "words"],
-        )
-        paragraph_col = _find_col(
-            dataset_df,
-            ["paragraph_count", "n_paragraphs", "num_paragraphs", "paragraphs"],
-        )
-        sentence_col = _find_col(
-            dataset_df,
-            ["sentence_count", "n_sentences", "num_sentences", "sentences"],
-        )
-
-        word_counts = (
-            pd.to_numeric(dataset_df[word_col], errors="coerce")
-            if word_col is not None
-            else None
-        )
-
-        markers = detect_structural_markers(dataset_df)
-        legal_reference_fields = detect_legal_reference_fields(dataset_df)
-
-        # Quantile-based length categories, computed from the actual
-        # observed word-count distribution (not fixed thresholds).
-        length_bounds = {}
-        length_category_series = None
-
-        if word_counts is not None and word_counts.notna().any():
-
-            q1, q2, q3 = word_counts.quantile([0.25, 0.5, 0.75])
-            wc_min, wc_max = word_counts.min(), word_counts.max()
-
-            def _length_bucket(v):
-                if pd.isna(v):
-                    return None
-                if v <= q1:
-                    return "Short"
-                if v <= q2:
-                    return "Medium"
-                if v <= q3:
-                    return "Long"
-                return "Very Long"
-
-            length_category_series = word_counts.apply(_length_bucket)
-            length_bounds = {
-                "Short": (wc_min, q1),
-                "Medium": (q1, q2),
-                "Long": (q2, q3),
-                "Very Long": (q3, wc_max),
-            }
-
-        # ------------------------------------------------------
-        # BASELINE (whole-sample) STATISTICS, FOR COMPARISON
-        # ------------------------------------------------------
-
-        baseline_median_words = (
-            word_counts.median() if word_counts is not None else None
-        )
-        baseline_marker_prevalence = {
-            name: series.mean() for name, series in markers.items()
-        }
-        baseline_dominant_topic = (
-            topic_series.mode().iloc[0]
-            if topic_series is not None and not topic_series.mode().empty
-            else None
-        )
-
-        # --------------------------------------------------------
-        # FILTERS
-        # --------------------------------------------------------
-
-        st.markdown("---")
-        st.subheader("Filters")
-
-        filter_col1, filter_col2, filter_col3 = st.columns(3)
-
-        # ---- Decade -------------------------------------------------
-        with filter_col1:
-
-            if decade_series is not None:
-                observed_decades = sorted(
-                    d for d in decade_series.dropna().unique()
-                )
-                decade_choice = st.selectbox(
-                    "Decade",
-                    ["All"] + observed_decades,
-                    key="ask_decade",
-                )
-                if "2020s" in observed_decades:
-                    st.caption(PARTIAL_DECADE_NOTE)
-            else:
-                decade_choice = "All"
-                st.selectbox(
-                    "Decade",
-                    ["All"],
-                    key="ask_decade_disabled",
-                    disabled=True,
-                    help="No date field was found in the processed dataset.",
-                )
-
-        # ---- Topic ----------------------------------------------------
-        with filter_col2:
-
-            if topic_series is not None:
-                observed_topics = sorted(
-                    topic_series.dropna().unique(),
-                    key=lambda t: int(re.search(r"\d+", t).group())
-                    if re.search(r"\d+", t)
-                    else 0,
-                )
-                topic_display_options = ["All"] + [
-                    TOPIC_LABELS.get(t, t) for t in observed_topics
-                ]
-                topic_choice_display = st.selectbox(
-                    "Topic",
-                    topic_display_options,
-                    key="ask_topic",
-                )
-                reverse_topic_labels = {v: k for k, v in TOPIC_LABELS.items()}
-                topic_choice = reverse_topic_labels.get(
-                    topic_choice_display, topic_choice_display
-                )
-            else:
-                topic_choice = "All"
-                st.selectbox(
-                    "Topic",
-                    ["All"],
-                    key="ask_topic_disabled",
-                    disabled=True,
-                    help="No topic assignment was found for this dataset.",
-                )
-
-        # ---- Judgment length -------------------------------------------
-        with filter_col3:
-
-            if length_category_series is not None:
-                length_choice = st.selectbox(
-                    "Judgment length",
-                    ["All", "Short", "Medium", "Long", "Very Long"],
-                    key="ask_length",
-                )
-                if length_choice != "All" and length_choice in length_bounds:
-                    lo, hi = length_bounds[length_choice]
-                    st.caption(
-                        f"{length_choice}: approximately "
-                        f"{int(lo):,}\u2013{int(hi):,} words "
-                        "(quantile-based, from the observed distribution)."
-                    )
-            else:
-                length_choice = "All"
-                st.selectbox(
-                    "Judgment length",
-                    ["All"],
-                    key="ask_length_disabled",
-                    disabled=True,
-                    help="No word-count field was found in the processed dataset.",
-                )
-
-        filter_col4, filter_col5 = st.columns(2)
-
-        # ---- Structural marker ------------------------------------------
-        with filter_col4:
-
-            if markers:
-                marker_choice = st.selectbox(
-                    "Structural marker",
-                    ["Any"] + sorted(markers.keys()),
-                    key="ask_marker",
-                )
-            else:
-                marker_choice = "Any"
-                st.selectbox(
-                    "Structural marker",
-                    ["Any"],
-                    key="ask_marker_disabled",
-                    disabled=True,
-                    help="No structural marker fields were found in the "
-                    "processed dataset.",
-                )
-
-        # ---- Legal reference ---------------------------------------------
-        with filter_col5:
-
-            if legal_reference_fields:
-                reference_type_choice = st.selectbox(
-                    "Legal reference",
-                    ["Any"] + sorted(legal_reference_fields.keys()),
-                    key="ask_reference_type",
-                )
-            else:
-                reference_type_choice = "Any"
-                st.selectbox(
-                    "Legal reference",
-                    ["Any"],
-                    key="ask_reference_type_disabled",
-                    disabled=True,
-                    help="No extracted legal-reference fields were found "
-                    "in the processed dataset.",
-                )
-
-        specific_reference_choice = "Any"
-
-        if reference_type_choice != "Any":
-
-            field_info = legal_reference_fields.get(reference_type_choice, {})
-            list_col = field_info.get("list_col")
-
-            if list_col is not None:
-                try:
-                    exploded = dataset_df[list_col].explode().dropna()
-                    top_values = (
-                        exploded.astype(str)
-                        .value_counts()
-                        .head(40)
-                        .index.tolist()
-                    )
-                except Exception:
-                    top_values = []
-
-                if top_values:
-                    specific_reference_choice = st.selectbox(
-                        f"Specific {reference_type_choice.lower()} "
-                        "(optional)",
-                        ["Any"] + top_values,
-                        key="ask_specific_reference",
-                    )
-
-        st.caption(
-            "Extracted legal references indicate that a citation pattern "
-            "was detected in the text; they are not a measure of citation "
-            "accuracy or legal correctness."
-        )
-
-        # --------------------------------------------------------
-        # APPLY FILTERS
-        # --------------------------------------------------------
-
-        mask = pd.Series(True, index=dataset_df.index)
-
-        if decade_series is not None and decade_choice != "All":
-            mask &= decade_series == decade_choice
-
-        if topic_series is not None and topic_choice != "All":
-            mask &= topic_series == topic_choice
-
-        if length_category_series is not None and length_choice != "All":
-            mask &= length_category_series == length_choice
-
-        if markers and marker_choice != "Any":
-            mask &= markers[marker_choice].reindex(dataset_df.index).fillna(False)
-
-        if legal_reference_fields and reference_type_choice != "Any":
-            field_info = legal_reference_fields[reference_type_choice]
-            counts = reference_count_series(dataset_df, field_info)
-
-            if specific_reference_choice != "Any" and field_info.get("list_col"):
-                list_col = field_info["list_col"]
-                mask &= dataset_df[list_col].apply(
-                    lambda v: isinstance(v, (list, tuple, set))
-                    and specific_reference_choice in [str(x) for x in v]
-                )
-            else:
-                mask &= counts > 0
-
-        filtered = dataset_df[mask]
-
-        # --------------------------------------------------------
-        # RESULTS — METRIC ROW
-        # --------------------------------------------------------
-
-        st.markdown("---")
-        st.subheader("Results")
-
-        n_matched = len(filtered)
-
-        def _median_or_na(col_name):
-            if col_name is None or n_matched == 0:
-                return "N/A"
-            values = pd.to_numeric(filtered[col_name], errors="coerce")
-            if values.notna().any():
-                return f"{values.median():,.0f}"
-            return "N/A"
-
-        median_words_display = _median_or_na(word_col)
-        median_paragraphs_display = _median_or_na(paragraph_col)
-        median_sentences_display = _median_or_na(sentence_col)
-
-        if topic_series is not None and n_matched > 0:
-            filtered_topics = topic_series.reindex(filtered.index).dropna()
-            if not filtered_topics.empty:
-                dominant_topic_key = filtered_topics.mode().iloc[0]
-                dominant_topic_display = TOPIC_LABELS.get(
-                    dominant_topic_key, dominant_topic_key
-                )
-            else:
-                dominant_topic_display = "N/A"
-        else:
-            dominant_topic_display = "N/A"
-
-        def _marker_prevalence_display(marker_name):
-            if marker_name not in markers or n_matched == 0:
-                return "N/A"
-            series = markers[marker_name].reindex(filtered.index).fillna(False)
-            return f"{series.mean() * 100:.1f}%"
-
-        held_prevalence_display = _marker_prevalence_display("HELD")
-        coram_prevalence_display = _marker_prevalence_display("CORAM")
-
-        if legal_reference_fields and n_matched > 0:
-            all_counts = []
-            for ref_type, info in legal_reference_fields.items():
-                all_counts.append(reference_count_series(filtered, info))
-            if all_counts:
-                combined_counts = sum(all_counts)
-                avg_reference_display = f"{combined_counts.mean():.1f}"
-                median_reference_display = f"{combined_counts.median():.0f}"
-            else:
-                avg_reference_display = "N/A"
-                median_reference_display = "N/A"
-        else:
-            avg_reference_display = "N/A"
-            median_reference_display = "N/A"
-
-        metric_row1 = st.columns(4)
-
-        with metric_row1[0]:
-            metric_card(
-                "Matching judgments",
-                f"{n_matched:,}",
-                "Judgments meeting all selected filters",
-            )
-        with metric_row1[1]:
-            metric_card(
-                "Median words",
-                median_words_display,
-                "Median words per matching judgment",
-            )
-        with metric_row1[2]:
-            metric_card(
-                "Median paragraphs",
-                median_paragraphs_display,
-                "Median paragraphs per matching judgment",
-            )
-        with metric_row1[3]:
-            metric_card(
-                "Median sentences",
-                median_sentences_display,
-                "Median sentences per matching judgment",
-            )
-
-        metric_row2 = st.columns(4)
-
-        with metric_row2[0]:
-            metric_card(
-                "Dominant topic",
-                dominant_topic_display,
-                "Most prevalent modeled topic in this subset",
-            )
-        with metric_row2[1]:
-            metric_card(
-                "HELD marker",
-                held_prevalence_display,
-                "Share of matching judgments containing HELD",
-            )
-        with metric_row2[2]:
-            metric_card(
-                "CORAM marker",
-                coram_prevalence_display,
-                "Share of matching judgments containing CORAM",
-            )
-        with metric_row2[3]:
-            metric_card(
-                "Legal references",
-                (
-                    f"avg {avg_reference_display} / "
-                    f"median {median_reference_display}"
-                    if avg_reference_display != "N/A"
-                    else "N/A"
-                ),
-                "Extracted references per matching judgment",
-            )
-
-        # --------------------------------------------------------
-        # DYNAMIC INTERPRETATION
-        # --------------------------------------------------------
-
-        st.markdown("---")
-        st.subheader("Interpretation")
-
-        if n_matched == 0:
-
-            st.info(
-                "No judgments in the sample match the selected combination "
-                "of filters."
-            )
-
-        else:
-
-            interpretation_parts = [
-                f"{n_matched:,} judgments match the selected filters."
-            ]
-
-            if median_words_display != "N/A" and median_paragraphs_display != "N/A":
-                interpretation_parts.append(
-                    f"The median matching judgment contains "
-                    f"{median_words_display} words and "
-                    f"{median_paragraphs_display} paragraphs."
-                )
-            elif median_words_display != "N/A":
-                interpretation_parts.append(
-                    f"The median matching judgment contains "
-                    f"{median_words_display} words."
-                )
-
-            if dominant_topic_display != "N/A":
-                interpretation_parts.append(
-                    f"The most prevalent modeled topic in this subset "
-                    f"is {dominant_topic_display}."
-                )
-
-            if held_prevalence_display != "N/A":
-                interpretation_parts.append(
-                    f"The HELD marker appears in approximately "
-                    f"{held_prevalence_display} of matching judgments."
-                )
-
-            st.markdown(" ".join(interpretation_parts))
-
-        # --------------------------------------------------------
-        # OBSERVED PATTERNS
-        # --------------------------------------------------------
-
-        st.markdown("---")
-        st.subheader("Observed Patterns")
-
-        observations = []
-
-        if (
-            n_matched > 0
-            and word_counts is not None
-            and baseline_median_words
-            and baseline_median_words > 0
-        ):
-            subset_median_words = pd.to_numeric(
-                filtered[word_col], errors="coerce"
-            ).median()
-
-            if pd.notna(subset_median_words):
-                ratio = subset_median_words / baseline_median_words
-                if ratio >= 1.10:
-                    observations.append(
-                        "Judgments in the selected subset tend to be "
-                        "longer than the overall sample median."
-                    )
-                elif ratio <= 0.90:
-                    observations.append(
-                        "Judgments in the selected subset tend to be "
-                        "shorter than the overall sample median."
-                    )
-
-        if n_matched > 0 and "HELD" in markers and baseline_marker_prevalence.get("HELD"):
-            subset_prevalence = (
-                markers["HELD"].reindex(filtered.index).fillna(False).mean()
-            )
-            baseline_prevalence = baseline_marker_prevalence["HELD"]
-            if baseline_prevalence > 0 and subset_prevalence >= baseline_prevalence * 1.10:
-                observations.append(
-                    "The selected subset shows a higher prevalence of the "
-                    "HELD marker than the full sample."
-                )
-            elif baseline_prevalence > 0 and subset_prevalence <= baseline_prevalence * 0.90:
-                observations.append(
-                    "The selected subset shows a lower prevalence of the "
-                    "HELD marker than the full sample."
-                )
-
-        if (
-            n_matched > 0
-            and dominant_topic_display != "N/A"
-            and baseline_dominant_topic is not None
-        ):
-            if topic_choice == "All":
-                observations.append(
-                    f"{dominant_topic_display} is the most prevalent "
-                    "modeled topic in this subset."
-                )
-
-        if n_matched > 0 and "CORAM" in markers:
-            subset_coram = (
-                markers["CORAM"].reindex(filtered.index).fillna(False).mean()
-            )
-            baseline_coram = baseline_marker_prevalence.get("CORAM")
-            if baseline_coram and baseline_coram > 0:
-                if subset_coram >= baseline_coram * 1.10:
-                    observations.append(
-                        "The CORAM marker has a higher prevalence in the "
-                        "selected subset than in the full sample."
-                    )
-
-        if not observations:
-            st.caption(
-                "No notable deviations from the overall sample were "
-                "detected for the current filter combination."
-            )
-        else:
-            for obs in observations[:4]:
-                st.markdown(f"- {obs}")
-
-        # --------------------------------------------------------
-        # VISUALIZATION
-        # --------------------------------------------------------
-
-        st.markdown("---")
-        st.subheader("Distribution")
-
-        if n_matched == 0:
-
-            st.info("No matching judgments to visualize.")
-
-        elif topic_series is not None:
-
-            filtered_topics = topic_series.reindex(filtered.index).dropna()
-            topic_counts = filtered_topics.value_counts()
-            labels = [TOPIC_LABELS.get(t, t) for t in topic_counts.index]
-
-            fig = go.Figure(
-                go.Bar(
-                    x=topic_counts.values,
-                    y=labels,
-                    orientation="h",
-                    marker_color="#c49b3a",
-                )
-            )
-            fig.update_layout(
-                title="Topic Distribution in Matching Judgments",
-                xaxis_title="Number of judgments",
-                yaxis_title="Modeled legal topic",
-                height=460,
-                margin=dict(l=60, r=30, t=60, b=40),
-                paper_bgcolor="#101216",
-                plot_bgcolor="#101216",
-                font=dict(color="#d8d3c4"),
-                yaxis=dict(autorange="reversed"),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        elif decade_series is not None:
-
-            filtered_decades = decade_series.reindex(filtered.index).dropna()
-            decade_counts = filtered_decades.value_counts().sort_index()
-
-            fig = go.Figure(
-                go.Bar(
-                    x=decade_counts.index.astype(str),
-                    y=decade_counts.values,
-                    marker_color="#c49b3a",
-                )
-            )
-            fig.update_layout(
-                title="Decade Distribution in Matching Judgments",
-                xaxis_title="Decade",
-                yaxis_title="Number of judgments",
-                height=440,
-                margin=dict(l=60, r=30, t=60, b=40),
-                paper_bgcolor="#101216",
-                plot_bgcolor="#101216",
-                font=dict(color="#d8d3c4"),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        elif word_counts is not None:
-
-            subset_words = pd.to_numeric(
-                filtered[word_col], errors="coerce"
-            ).dropna()
-
-            fig = go.Figure(
-                go.Histogram(
-                    x=subset_words,
-                    marker_color="#c49b3a",
-                    nbinsx=30,
-                )
-            )
-            fig.update_layout(
-                title="Judgment Length Distribution in Matching Judgments",
-                xaxis_title="Word count",
-                yaxis_title="Number of judgments",
-                height=440,
-                margin=dict(l=60, r=30, t=60, b=40),
-                paper_bgcolor="#101216",
-                plot_bgcolor="#101216",
-                font=dict(color="#d8d3c4"),
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        else:
-
-            st.info(
-                "No topic, decade, or word-count field was available to "
-                "visualize for this dataset."
-            )
-
-        st.caption(
-            "Statistics on this page are calculated directly from the "
-            "processed research sample and update with the selected "
-            "filters. They describe patterns in the sample and are not "
-            "causal claims."
-        )
-
-
-# ============================================================
 # CHATBOT
 # ============================================================
 
@@ -2579,7 +1557,7 @@ elif page == "Chatbot":
 
         if answer:
 
-            st.markdown(answer)
+            st.markdown(answer, unsafe_allow_html=True)
 
         else:
 
@@ -2656,7 +1634,7 @@ elif page == "Chatbot":
 
         st.markdown("---")
 
-        st.subheader("Supporting Judgments")
+        st.subheader("Supporting Judgments & Citations")
 
         if not sources:
 
@@ -2666,61 +1644,53 @@ elif page == "Chatbot":
 
         else:
 
-            # Deduplicate by diary number for display.
-            # Multiple chunks from the same judgment may have
-            # been retrieved, but the UI should show the judgment
-            # only once.
-
-            displayed_diaries = set()
-
             for source in sources:
 
-                diary_no = source.get(
-                    "diary_no",
-                    "Unknown",
-                )
+                source_num = source.get("source_number", 1)
+                case_name = source.get("case_name", "Case name unavailable")
+                year = source.get("year", "")
+                year_suffix = f" ({year})" if year and year != "Year unavailable" else ""
+                diary_no = source.get("diary_no", "Unknown")
+                judgment_date = source.get("judgment_date", "Unknown")
+                citation = source.get("citation", "Citation unavailable")
+                url = source.get("url")
+                score = source.get("score")
+                score_text = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
+                section = source.get("section_label", "general")
 
-                if diary_no in displayed_diaries:
-                    continue
+                if citation and citation != "Citation unavailable":
+                    citation_html = f'<span style="color:#f1ecdd; font-family:monospace; background:rgba(196,155,58,0.14); padding:2px 8px; border-radius:4px; border:1px solid rgba(196,155,58,0.3);">{citation}</span>'
+                else:
+                    citation_html = '<span style="color:#8f8a79; font-style:italic;">Citation unavailable</span>'
 
-                displayed_diaries.add(diary_no)
-
-                display_number = len(displayed_diaries)
-
-                judgment_date = source.get(
-                    "judgment_date",
-                    "Unknown",
-                )
-
-                score = source.get(
-                    "score",
-                    None,
-                )
-
-                score_text = (
-                    f"{score:.4f}"
-                    if isinstance(score, (int, float))
-                    else "N/A"
-                )
+                if url:
+                    url_html = f'<a href="{url}" target="_blank" rel="noopener noreferrer" style="color:#d9b662; font-weight:600; text-decoration:underline;">View Official Supreme Court Judgment (PDF) &#x2197;</a>'
+                else:
+                    url_html = '<span style="color:#8f8a79; font-style:italic;">Judgment link unavailable</span>'
 
                 st.markdown(
                     f"""
-                    <div class="finding-card">
+                    <div id="source-{source_num}" class="finding-card" style="scroll-margin-top: 1.5rem;">
 
-                        <div class="finding-number">
-                            JUDGMENT {display_number}
+                        <div class="finding-number" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>CITATION [{source_num}]</span>
+                            <span style="font-size:0.75rem; color:#8f8a79; font-weight:normal;">
+                                Relevance Score: <strong style="color:#d9b662;">{score_text}</strong> &middot; Section: {section}
+                            </span>
                         </div>
 
-                        <div class="finding-title">
-                            Diary No. {diary_no}
+                        <div class="finding-title" style="margin-top:0.4rem; font-size:1.12rem; line-height:1.4;">
+                            {case_name}{year_suffix}
                         </div>
 
-                        <div class="finding-text">
-                            <strong>Judgment date:</strong>
-                            {judgment_date}
+                        <div class="finding-text" style="margin-top:0.6rem; line-height:1.7;">
+                            <strong>Verified Citation:</strong> {citation_html}
                             <br>
-                            <strong>Retrieval score:</strong>
-                            {score_text}
+                            <strong>Official Document:</strong> {url_html}
+                            <br>
+                            <span style="color:#8f8a79; font-size:0.8rem;">
+                                Diary No: <code>{diary_no}</code> &middot; Judgment Date: {judgment_date}
+                            </span>
                         </div>
 
                     </div>
@@ -2782,17 +1752,15 @@ elif page == "Chatbot":
                         else "N/A"
                     )
 
+                    case_name = item.get("case_name", "Case name unavailable")
+                    url = item.get("url")
+                    doc_link = f' &middot; [Official PDF ↗]({url})' if url else ''
+
                     st.markdown(
                         f"""
-                        **Rank {idx}**
+                        **Rank {idx}: {case_name}**
 
-                        **Diary:** {diary_no}
-
-                        **Date:** {judgment_date}
-
-                        **Section:** {section}
-
-                        **Retrieval score:** {score_text}
+                        **Diary:** {diary_no} &middot; **Date:** {judgment_date} &middot; **Section:** {section} &middot; **Score:** {score_text}{doc_link}
                         """
                     )
 

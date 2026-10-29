@@ -4,6 +4,7 @@ from pathlib import Path
 
 from src.rag.embeddings import EmbeddingModel
 from src.rag.faiss_index import FaissIndex, load_mapping
+from src.rag.metadata import get_document_metadata
 
 
 class Retriever:
@@ -51,30 +52,35 @@ class Retriever:
                 continue
 
             item = mapping[int(index)]
+            diary_no = item.get("diary_no", "")
+            doc_meta = get_document_metadata(diary_no)
 
             results.append(
                 {
                     "rank": len(results) + 1,
                     "score": float(score),
                     "chunk_id": item["chunk_id"],
-                    "diary_no": item["diary_no"],
-                    "judgment_date": item["judgment_date"],
-                    "year": item["year"],
-                    "decade": item["decade"],
-                    "chunking_strategy": item[
-                        "chunking_strategy"
-                    ],
-                    "chunk_index": item["chunk_index"],
-                    "text": item["text"],
-                    "start_position": item[
-                        "start_position"
-                    ],
-                    "end_position": item[
-                        "end_position"
-                    ],
-                    "section_label": item.get(
-                        "section_label"
+                    "diary_no": diary_no,
+                    "case_name": doc_meta.get("case_name", "Case name unavailable"),
+                    "citation": doc_meta.get("citation", "Citation unavailable"),
+                    "url": doc_meta.get("url"),
+                    "judgment_date": (
+                        doc_meta.get("judgment_date")
+                        if doc_meta.get("judgment_date") != "Date unavailable"
+                        else item.get("judgment_date", "Unknown")
                     ),
+                    "year": (
+                        doc_meta.get("year")
+                        if doc_meta.get("year") != "Year unavailable"
+                        else item.get("year", "Unknown")
+                    ),
+                    "decade": item.get("decade", "Unknown"),
+                    "chunking_strategy": item.get("chunking_strategy", strategy),
+                    "chunk_index": item.get("chunk_index", 0),
+                    "text": item["text"],
+                    "start_position": item.get("start_position", 0),
+                    "end_position": item.get("end_position", 0),
+                    "section_label": item.get("section_label", "general"),
                 }
             )
 
